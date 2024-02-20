@@ -31,11 +31,45 @@ struct pcdev_private_data
 struct pcd_drv_private_data
 {
     int total_devices;
-    struct pcdev_private_data pcdev_data[NO_OF_DEVICES];
     dev_t device_num;
     struct class *class_pcd;
     struct device *device_pcd;
+    struct pcdev_private_data pcdev_data[NO_OF_DEVICES];
+
 };
+
+struct pcd_drv_private_data pcdrv_data =
+{
+    .total_devices = NO_OF_DEVICES,
+    .pcdev_data = {
+        [0] = {
+            .buffer = device_buf_pcdev1,
+            .size = MEM_SIZE_PCDEV1,
+            .serial_num = "pcdev_1",
+            .perm = 0x1, /* RDONLY */
+        },
+        [1] = {
+            .buffer = device_buf_pcdev2,
+            .size = MEM_SIZE_PCDEV2,
+            .serial_num = "pcdev_1",
+            .perm = 0x1, /* RDONLY */
+        },
+        [2] = {
+            .buffer = device_buf_pcdev3,
+            .size = MEM_SIZE_PCDEV3,
+            .serial_num = "pcdev_1",
+            .perm = 0x1, /* RDONLY */
+        },        
+        [3] = {
+            .buffer = device_buf_pcdev4,
+            .size = MEM_SIZE_PCDEV4,
+            .serial_num = "pcdev_1",
+            .perm = 0x1, /* RDONLY */
+        }
+
+    }
+};
+
 
 loff_t pcd_lseek(struct file *flip, loff_t offset, int whence){
      loff_t temp;
