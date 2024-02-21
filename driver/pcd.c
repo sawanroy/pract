@@ -53,19 +53,19 @@ struct pcd_drv_private_data pcdrv_data =
         [1] = {
             .buffer = device_buf_pcdev2,
             .size = MEM_SIZE_PCDEV2,
-            .serial_num = "pcdev_1",
+            .serial_num = "pcdev_2",
             .perm = WRONLY, /* WRONLY */
         },
         [2] = {
             .buffer = device_buf_pcdev3,
             .size = MEM_SIZE_PCDEV3,
-            .serial_num = "pcdev_1",
+            .serial_num = "pcdev_3",
             .perm = RDWR, /* RDWR */
         },        
         [3] = {
             .buffer = device_buf_pcdev4,
             .size = MEM_SIZE_PCDEV4,
-            .serial_num = "pcdev_1",
+            .serial_num = "pcdev_4",
             .perm = RDWR, /* RDWR */
         }
 
@@ -229,19 +229,21 @@ static int __init pcd_driver_init(void)
     }
 
     for(i=0;i<NO_OF_DEVICES;i++){
-    pr_info(" driver <MAJOR> : <MINOR> %d : %d",MAJOR(pcdrv_data.device_num +i),MINOR(pcdrv_data.device_num+i));
+    pr_info(" driver <MAJOR> : <MINOR> %d : %d",MAJOR(pcdrv_data.device_num+i),MINOR(pcdrv_data.device_num+i));
     
     /*cdev init */
     cdev_init(&pcdrv_data.pcdev_data[i].cdev,&pcd_fops);
-    pcdrv_data.pcdev_data[i].cdev.owner =  THIS_MODULE;    
-    ret = cdev_add(&pcdrv_data.pcdev_data[i].cdev,pcdrv_data.device_num,1);
+
+    pcdrv_data.pcdev_data[i].cdev.owner =  THIS_MODULE;
+
+    ret = cdev_add(&pcdrv_data.pcdev_data[i].cdev,pcdrv_data.device_num+i,1);
     if(ret < 0)
     {
         pr_err("error while cdev add");
         goto cdev_del;
     }
 
-    pcdrv_data.device_pcd = device_create(pcdrv_data.class_pcd,NULL,pcdrv_data.device_num,NULL,"pcd_dev-%d",i);
+    pcdrv_data.device_pcd = device_create(pcdrv_data.class_pcd,NULL,pcdrv_data.device_num+i,NULL,"pcd_dev-%d",i+1);
     if(IS_ERR(pcdrv_data.device_pcd))
     {
         pr_err("device creation failed");
@@ -254,8 +256,10 @@ static int __init pcd_driver_init(void)
     return 0;
 cdev_del:
 class_distroy:
-    for(;i<NO_OF_DEVICES;i++)
+    pr_err ("removing all the nodes");
+    for(;i>=0;i--)
     {
+        pr_err ("removing all the nodes %d \n",i);
      device_destroy(pcdrv_data.class_pcd,pcdrv_data.device_num+i);
      cdev_del(&pcdrv_data.pcdev_data[i].cdev);
     }
@@ -269,14 +273,18 @@ out:
 
 static void __exit pcd_driver_exit(void)
 {
-    #if 0
-    device_destroy(class_pcd,device_num);
-    class_destroy(class_pcd);
-    cdev_del(&pcdev_data);
-    unregister_chrdev_region(device_num,1);
+    int i;
+   
+    for(i=0;i<NO_OF_DEVICES;i++)
+    {
+     device_destroy(pcdrv_data.class_pcd,pcdrv_data.device_num+i);
+     cdev_del(&pcdrv_data.pcdev_data[i].cdev);
+    }
+    class_destroy(pcdrv_data.class_pcd); 
+    unregister_chrdev_region(pcdrv_data.device_num,NO_OF_DEVICES);
 
     pr_info("module exited success");
-    #endif
+
 }
 
 module_init(pcd_driver_init);
