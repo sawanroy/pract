@@ -174,12 +174,11 @@ int check_permission(int dev_perm, int acc_mode)
 
 
 int pcd_open(struct inode *pinode, struct file *flip){
-    pr_info("pcd driver open success");
 
     int ret;
     int minor_n;
     struct pcdev_private_data *pcdev_data;
-
+    pr_info("pcd driver open success");
     minor_n = MINOR(pinode->i_rdev);
     pr_info("Minor acess of %d",minor_n);
 
@@ -221,7 +220,7 @@ static int __init pcd_driver_init(void)
         goto out;
     }
 
-    pcdrv_data.class_pcd = class_create("pcd_class");
+    pcdrv_data.class_pcd = class_create(THIS_MODULE,"pcd_drv_class");
     if(IS_ERR(pcdrv_data.class_pcd))
     {
         pr_err("Class creation failed");
@@ -242,7 +241,7 @@ static int __init pcd_driver_init(void)
         goto cdev_del;
     }
 
-    pcdrv_data.device_pcd = device_create(pcdrv_data.class_pcd,NULL,pcdrv_data.device_num,NULL,"pcd-%d",i);
+    pcdrv_data.device_pcd = device_create(pcdrv_data.class_pcd,NULL,pcdrv_data.device_num,NULL,"pcd_dev-%d",i);
     if(IS_ERR(pcdrv_data.device_pcd))
     {
         pr_err("device creation failed");
