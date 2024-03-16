@@ -4,6 +4,7 @@
 #include<linux/device.h>
 #include<linux/uaccess.h>
 #include <linux/errno.h>
+#include<linux/platform_device.h>
 
 #define NO_OF_DEVICES 4
 #define MEM_SIZE_PCDEV1 1024
@@ -196,6 +197,26 @@ int pcd_release(struct inode *pinode, struct file *flip){
     return 0;
 }
 
+int pcd_platfrom_driver_remove(struct platform_device *pdev)
+{
+    return 0;
+}
+
+
+int pcd_platfrom_driver_probe(struct platform_device *pdev)
+{
+    return 0;
+}
+
+struct platform_driver pcd_platform_drv = 
+{
+    .probe = pcd_platfrom_driver_probe,
+    .remove = pcd_platfrom_driver_remove,
+    .driver = {
+        .name = "pseudo-char-device"
+    }
+};
+
 
 struct file_operations pcd_fops = 
 {
@@ -211,79 +232,15 @@ struct file_operations pcd_fops =
 
 static int __init pcd_driver_init(void)
 {
-    int ret;
-    int i;
-    ret = alloc_chrdev_region(&pcdrv_data.device_num, 0, NO_OF_DEVICES, "pcd_driver");
-    if(ret < 0)
-    {   
-        pr_err("error while alloc chrdev");
-        goto out;
-    }
-
-    pcdrv_data.class_pcd = class_create(THIS_MODULE,"pcd_drv_class");
-    if(IS_ERR(pcdrv_data.class_pcd))
-    {
-        pr_err("Class creation failed");
-        ret = PTR_ERR(pcdrv_data.class_pcd);
-        goto chrdev_unregister;
-    }
-
-    for(i=0;i<NO_OF_DEVICES;i++){
-    pr_info(" driver <MAJOR> : <MINOR> %d : %d",MAJOR(pcdrv_data.device_num+i),MINOR(pcdrv_data.device_num+i));
     
-    /*cdev init */
-    cdev_init(&pcdrv_data.pcdev_data[i].cdev,&pcd_fops);
-
-    pcdrv_data.pcdev_data[i].cdev.owner =  THIS_MODULE;
-
-    ret = cdev_add(&pcdrv_data.pcdev_data[i].cdev,pcdrv_data.device_num+i,1);
-    if(ret < 0)
-    {
-        pr_err("error while cdev add");
-        goto cdev_del;
-    }
-
-    pcdrv_data.device_pcd = device_create(pcdrv_data.class_pcd,NULL,pcdrv_data.device_num+i,NULL,"pcd_dev-%d",i+1);
-    if(IS_ERR(pcdrv_data.device_pcd))
-    {
-        pr_err("device creation failed");
-        ret = PTR_ERR(pcdrv_data.device_pcd);
-        goto class_distroy;
-    }
-    }
-    pr_info("init driver success");
-
+    platform_driver_register(&pcd_platform_drv);
     return 0;
-cdev_del:
-class_distroy:
-    pr_err ("removing all the nodes");
-    for(;i>=0;i--)
-    {
-        pr_err ("removing all the nodes %d \n",i);
-     device_destroy(pcdrv_data.class_pcd,pcdrv_data.device_num+i);
-     cdev_del(&pcdrv_data.pcdev_data[i].cdev);
-    }
-    class_destroy(pcdrv_data.class_pcd); 
-chrdev_unregister:
-    unregister_chrdev_region(pcdrv_data.device_num,NO_OF_DEVICES);
-out:
-    return ret;
 
 }
 
 static void __exit pcd_driver_exit(void)
 {
-    int i;
-   
-    for(i=0;i<NO_OF_DEVICES;i++)
-    {
-     device_destroy(pcdrv_data.class_pcd,pcdrv_data.device_num+i);
-     cdev_del(&pcdrv_data.pcdev_data[i].cdev);
-    }
-    class_destroy(pcdrv_data.class_pcd); 
-    unregister_chrdev_region(pcdrv_data.device_num,NO_OF_DEVICES);
-
-    pr_info("module exited success");
+   platform_driver_unregister(&pcd_platform_drv);
 
 }
 
