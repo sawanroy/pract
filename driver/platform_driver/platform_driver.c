@@ -160,7 +160,13 @@ struct file_operations pcd_fops =
 };
 int pcd_platfrom_driver_remove(struct platform_device *pdev)
 {
+    struct pcdev_private_data *dev_data = dev_get_drvdata(&pdev->dev);
+    /*Remove a device that was created with device_create*/
+    device_destroy(pcdrv_data.class_pcd,dev_data->dev_num);
+    /*Remove a cdev entry from system*/
+    /*Free the momery held by the device*/
 
+    pcdrv_data.total_devices--;
     pr_info("device is removed");
     return 0;
 }
@@ -188,6 +194,9 @@ int pcd_platfrom_driver_probe(struct platform_device *pdev)
         ret = -ENOMEM;
         goto out;
     }
+    
+    /*save the device private dtta in pdev structure*/
+    dev_set_drvdata(&pdev->dev,dev_data);
     dev_data->pdata.size = pdata->size;
     dev_data->pdata.perm = pdata->perm;
     dev_data->pdata.serial_number = pdata->serial_number;
@@ -226,8 +235,12 @@ int pcd_platfrom_driver_probe(struct platform_device *pdev)
         ret = PTR_ERR(pcdrv_data.device_pcd);
         goto cdev_del;
     }
+
+    pcdrv_data.total_devices++;
     pr_info("The probe was successful");
     return 0;
+
+/*error handling*/    
 cdev_del:
     cdev_del(&dev_data->cdev);
 
