@@ -1,38 +1,29 @@
 
 #include"platform.h"
+#include<linux/slab.h>
 #include<linux/version.h>
 
-struct pcd_drv_private_data pcdrv_data =
-{
-    // .total_devices = NO_OF_DEVICES,
-    // .pcdev_data = {
-    //     [0] = {
-    //         .buffer = device_buf_pcdev1,
-    //         .size = MEM_SIZE_PCDEV1,
-    //         .serial_num = "pcdev_1",
-    //         .perm = RDONLY, /* RDONLY */
-    //     },
-    //     [1] = {
-    //         .buffer = device_buf_pcdev2,
-    //         .size = MEM_SIZE_PCDEV2,
-    //         .serial_num = "pcdev_2",
-    //         .perm = WRONLY, /* WRONLY */
-    //     },
-    //     [2] = {
-    //         .buffer = device_buf_pcdev3,
-    //         .size = MEM_SIZE_PCDEV3,
-    //         .serial_num = "pcdev_3",
-    //         .perm = RDWR, /* RDWR */
-    //     },        
-    //     [3] = {
-    //         .buffer = device_buf_pcdev4,
-    //         .size = MEM_SIZE_PCDEV4,
-    //         .serial_num = "pcdev_4",
-    //         .perm = RDWR, /* RDWR */
-    //     }
 
-    // }
+/* defination of private device data strucure*/
+struct pcdev_private_data
+{
+    struct pcdev_platform_data pdata;
+    char *buffer;
+    dev_t dev_num;
+    struct cdev cdev;
 };
+/* defination of private driver data strucure*/
+struct pcd_drv_private_data
+{
+    int total_devices;
+    dev_t device_num_base;
+    struct class *class_pcd;
+    struct device *device_pcd;
+    //struct pcdev_private_data pcdev_data[NO_OF_DEVICES];
+
+};
+struct pcd_drv_private_data pcdrv_data;
+
 
 
 loff_t pcd_lseek(struct file *flip, loff_t offset, int whence){
@@ -157,31 +148,6 @@ int pcd_release(struct inode *pinode, struct file *flip){
     pr_info("pcd driver release success");
     return 0;
 }
-
-int pcd_platfrom_driver_remove(struct platform_device *pdev)
-{
-
-    pr_info("device is removed");
-    return 0;
-}
-
-
-int pcd_platfrom_driver_probe(struct platform_device *pdev)
-{
-    pr_info("device is detected");
-    return 0;
-}
-
-struct platform_driver pcd_platform_dev = 
-{
-    .probe = pcd_platfrom_driver_probe,
-    .remove = pcd_platfrom_driver_remove,
-    .driver = {
-        .name = "pseudo-char-device"
-    }
-};
-
-
 struct file_operations pcd_fops = 
 {
     .open = pcd_open,
@@ -192,8 +158,95 @@ struct file_operations pcd_fops =
     .owner = THIS_MODULE
 
 };
+int pcd_platfrom_driver_remove(struct platform_device *pdev)
+{
+
+    pr_info("device is removed");
+    return 0;
+}
 
 
+int pcd_platfrom_driver_probe(struct platform_device *pdev)
+{
+    int ret;
+
+    struct pcdev_platform_data *pdata;
+    struct pcdev_private_data *dev_data;
+
+    /*Get the platform data*/
+    pdata = (struct pcdev_platform_data*)dev_get_platdata(&pdev->dev);
+    if(!pdata){
+        pr_info("No platform data is avaiable");
+        ret = -EINVAL;
+        goto out;
+    }
+    /* Dynamically allocating th ememory to device private data*/
+    dev_data = kzalloc(sizeof(*dev_data),GFP_KERNEL);
+    if(!dev_data)
+    {
+        pr_info("cannot allocate the memory");
+        ret = -ENOMEM;
+        goto out;
+    }
+    dev_data->pdata.size = pdata->size;
+    dev_data->pdata.perm = pdata->perm;
+    dev_data->pdata.serial_number = pdata->serial_number;
+
+    pr_info("device size %d\n",dev_data->pdata.size);
+    pr_info("device permission %d\n",dev_data->pdata.perm);
+    pr_info("device serial number %s\n",dev_data->pdata.serial_number);
+
+    /* Dynamically allcoat eth ememory for th edeivce buffer */
+    dev_data->buffer = kzalloc(dev_data->pdata.size,GFP_KERNEL);
+    if(!dev_data->buffer)
+    {
+        pr_info("cannot allocate the memory");
+        ret = -ENOMEM;
+        goto dev_data_free;
+    }
+
+    /* Get the device number*/
+    dev_data->dev_num = pcdrv_data.device_num_base + pdev->id;
+
+    /*Do cdev init and cdev add*/
+    cdev_init(&dev_data->cdev,&pcd_fops);
+    dev_data->cdev.owner =  THIS_MODULE;
+    ret = cdev_add(&dev_data->cdev,dev_data->dev_num,1);
+    if(ret < 0)
+    {
+        pr_err("error while cdev add");
+        goto buffer_free;
+    }
+
+    /* Create device file for the dectected platform device*/
+    pcdrv_data.device_pcd = device_create(pcdrv_data.class_pcd,NULL,dev_data->dev_num,NULL,"pcdev-%d",pdev->id);
+    if(IS_ERR(pcdrv_data.device_pcd))
+    {
+        pr_err("device creation failed");
+        ret = PTR_ERR(pcdrv_data.device_pcd);
+        goto cdev_del;
+    }
+    pr_info("The probe was successful");
+    return 0;
+cdev_del:
+    cdev_del(&dev_data->cdev);
+
+buffer_free:
+    kfree(dev_data->buffer);    
+dev_data_free:
+    kfree(dev_data);
+out:
+    pr_info("device probe failed");
+    return ret;
+}
+struct platform_driver pcd_platform_dev = 
+{
+    .probe = pcd_platfrom_driver_probe,
+    .remove = pcd_platfrom_driver_remove,
+    .driver = {
+        .name = "pseudo-char-device"
+    }
+};
 static int __init pcd_driver_init(void)
 {
     int ret;
